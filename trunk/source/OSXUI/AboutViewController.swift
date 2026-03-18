@@ -20,6 +20,7 @@ import Cocoa
 
         // Setup NSVisualEffectView/NSGlassEffectView background.
         _ = MacSwiftUtils.SetupEffectViewBackground(mainView)
+        configureAboutChrome()
 
         // Do view setup here.
         iconImageView.image = NSApp.applicationIconImage
@@ -28,22 +29,17 @@ import Cocoa
         let strAppBundleVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
 
         var strAboutInfo = ""
-        strAboutInfo += MacSwiftUtils.GetStringFromRes("ABOUTDLG_INFO_TITLE")
-        strAboutInfo += " "
-        strAboutInfo += (strAppVersion ?? "")
-        strAboutInfo += " ("
-        strAboutInfo += (strAppBundleVersion ?? "")
-        strAboutInfo += ")"
-        strAboutInfo += "\n"
         strAboutInfo += MacSwiftUtils.GetStringFromRes("ABOUTDLG_INFO_RIGHT")
         strAboutInfo += "\n"
         strAboutInfo += "\n"
         strAboutInfo += MacSwiftUtils.GetStringFromRes("ABOUTDLG_INFO_MD5")
         strAboutInfo += "\n"
         strAboutInfo += MacSwiftUtils.GetStringFromRes("ABOUTDLG_INFO_SHA256")
-        strAboutInfo += "\n"
-        strAboutInfo += MacSwiftUtils.GetStringFromRes("ABOUTDLG_INFO_SHA512")
-        infoTextField.stringValue = strAboutInfo
+        infoTextField.attributedStringValue = buildAboutInfoText(
+            version: strAppVersion ?? "",
+            build: strAppBundleVersion ?? "",
+            details: strAboutInfo
+        )
 
         // Set homepage.
         var strLinkText = MacSwiftUtils.GetStringFromRes("ABOUTDLG_PROJECT_SITE")
@@ -57,12 +53,23 @@ import Cocoa
             .link,
             value: url,
             range: NSRange(location: 0, length: hyperlinkString.length))
+        hyperlinkString.addAttribute(
+            .foregroundColor,
+            value: NSColor.controlAccentColor,
+            range: NSRange(location: 0, length: hyperlinkString.length))
+        hyperlinkString.addAttribute(
+            .font,
+            value: NSFont.systemFont(ofSize: 13),
+            range: NSRange(location: 0, length: hyperlinkString.length))
         hyperlinkString.endEditing()
 
         homePageLinkTextField.attributedStringValue = hyperlinkString
 
         closeButton.keyEquivalent = "\r"
         closeButton.title = MacSwiftUtils.GetStringFromRes("BUTTON_OK")
+        closeButton.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        closeButton.bezelColor = nil
+        closeButton.contentTintColor = nil
         if (MacSwiftUtils.IsSystemEarlierThan(26, 0)) {
             closeButton.controlSize = .regular
         }
@@ -71,5 +78,50 @@ import Cocoa
     @IBAction func closeButtonClicked(_ sender: NSButton) {
         view.window?.close()
     }
-}
 
+    private func configureAboutChrome() {
+        iconImageView.wantsLayer = false
+        iconImageView.imageScaling = .scaleProportionallyUpOrDown
+
+        infoTextField.maximumNumberOfLines = 0
+        infoTextField.lineBreakMode = .byWordWrapping
+    }
+
+    private func buildAboutInfoText(version: String, build: String, details: String) -> NSAttributedString {
+        let text = NSMutableAttributedString()
+        let versionText: String
+        if version.isEmpty {
+            versionText = "fHash"
+        } else if build.isEmpty {
+            versionText = "fHash \(version)"
+        } else {
+            versionText = "fHash \(version) (\(build))"
+        }
+
+        let title = NSMutableAttributedString(
+            string: "\(versionText)\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 19, weight: .semibold),
+                .foregroundColor: NSColor.labelColor
+            ]
+        )
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 4
+        paragraphStyle.paragraphSpacing = 4
+
+        let body = NSMutableAttributedString(
+            string: details,
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+
+        text.append(title)
+        text.append(body)
+
+        return text
+    }
+}

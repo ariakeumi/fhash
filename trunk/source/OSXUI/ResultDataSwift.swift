@@ -21,8 +21,6 @@ import Foundation
     @objc var strMDate:String = "" // Modified date
     @objc var strVersion:String = "" // Version
     @objc var strMD5:String = "" // MD5
-    @objc var strSHA1:String = "" // SHA1
     @objc var strSHA256:String = "" // SHA256
-    @objc var strSHA512:String = "" // SHA512
     @objc var strError:String = "" // Error string
 }

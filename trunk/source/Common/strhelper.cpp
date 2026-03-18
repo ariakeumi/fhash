@@ -13,11 +13,6 @@
 #include <math.h>
 #include <string>
 
-#if defined (_WIN32)
-#include "Windows.h"
-#endif
-
-#if defined (__APPLE__) || defined (__unix)
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
@@ -27,43 +22,9 @@
 #include <iostream>
 #include <locale>
 #include <vector>
-#endif
 
 #include "strhelper.h"
 
-namespace sunjwbase
-{
-#if defined (_WIN32)
-	// Windows convert
-	static std::string _wstrtostr(const std::wstring& wstr, UINT codePage)
-	{
-		// Convert a wstring to a specified code page encoded string
-		size_t strLen = WideCharToMultiByte(codePage, 0, wstr.c_str(), (int)wstr.length(), NULL, 0, NULL, NULL);
-		std::string strTo;
-		char *szTo = new char[strLen + 1];
-		szTo[strLen] = '\0';
-		WideCharToMultiByte(codePage, 0, wstr.c_str(), -1, szTo, (int)strLen, NULL, NULL);
-		strTo = szTo;
-		delete[] szTo;
-		return strTo;
-	}
-
-	static std::wstring _strtowstr(const std::string& str, UINT codePage)
-	{
-		// Convert a specified code page encoded string to a wstring
-		size_t wstrLen = MultiByteToWideChar(codePage, 0, str.c_str(), -1, NULL, 0);
-		std::wstring wstrTo;
-		wchar_t *wszTo = new wchar_t[wstrLen + 1];
-		wszTo[wstrLen] = L'\0';
-		MultiByteToWideChar(codePage, 0, str.c_str(), -1, wszTo, (int)wstrLen);
-		wstrTo = wszTo;
-		delete[] wszTo;
-		return wstrTo;
-	}
-#endif
-}
-
-#if defined (__APPLE__) || defined (__unix)
 std::string sunjwbase::striconv(const std::string& input,
 								const std::string& to_code,
 								const std::string& from_code)
@@ -96,7 +57,6 @@ std::string sunjwbase::striconv(const std::string& input,
 
 	return strRet;
 }
-#endif
 
 /*
  * convert wstring to utf8 encoded string
@@ -104,12 +64,7 @@ std::string sunjwbase::striconv(const std::string& input,
 std::string sunjwbase::wstrtostrutf8(const std::wstring& wstr)
 {
 	// Convert a wstring to an utf8 encoded string
-#if defined (_WIN32)
-	return _wstrtostr(wstr, CP_UTF8);
-#endif
-#if defined (__APPLE__) || defined (__unix)
 	return striconv(wstrtostr(wstr), "UTF-8", "ASCII");
-#endif
 }
 
 /*
@@ -120,21 +75,12 @@ std::string sunjwbase::wstrtostrutf8(const std::wstring& wstr)
 std::wstring sunjwbase::strtowstrutf8(const std::string& str)
 {
 	// Convert an utf8 encoded string to a wstring
-#if defined (_WIN32)
-	return _strtowstr(str, CP_UTF8);
-#endif
-#if defined (__APPLE__) || defined (__unix)
 	return strtowstr(striconv(str, "ASCII", "UTF-8"));
-#endif
 }
 
 std::string sunjwbase::wstrtostr(const std::wstring& wstr)
 {
 	// Convert a wstring to an string
-#if defined (_WIN32)
-	return _wstrtostr(wstr, CP_ACP);
-#endif
-#if defined (__APPLE__) || defined (__unix)
 	setlocale(LC_ALL, "zh_CN.UTF-8");
 	size_t num_chars = wcstombs(NULL, wstr.c_str(), 0);
 	char* char_buf = new char[num_chars + 1];
@@ -145,16 +91,11 @@ std::string sunjwbase::wstrtostr(const std::wstring& wstr)
 	setlocale(LC_ALL, "C");
 
 	return str;
-#endif
 }
 
 std::wstring sunjwbase::strtowstr(const std::string& str)
 {
 	// Convert an string to a wtring
-#if defined (_WIN32)
-	return _strtowstr(str, CP_ACP);
-#endif
-#if defined (__APPLE__) || defined (__unix)
 	setlocale(LC_ALL, "zh_CN.UTF-8");
 	size_t num_chars = mbstowcs(NULL, str.c_str(), 0);
 	wchar_t* wct_buf = new wchar_t[num_chars + 1];
@@ -165,7 +106,6 @@ std::wstring sunjwbase::strtowstr(const std::string& str)
 	setlocale(LC_ALL, "C");
 
 	return wstr;
-#endif
 }
 
 std::string sunjwbase::asciiconvjson(std::string& strJsonUtf16)
@@ -362,11 +302,7 @@ std::string sunjwbase::strappendformat(std::string& str, const char *format, ...
 	{
 		temp.resize(size + 1); // for null terminator
 		va_start(vl, format);
-#if defined (_WIN32)
-		int n = vsnprintf_s((char *)temp.data(), size, _TRUNCATE, format, vl);
-#else
 		int n = vsnprintf((char *)temp.data(), size, format, vl);
-#endif
 		va_end(vl);
 		if (n > -1 && n < size) {
 			// temp.resize(n);

@@ -8,6 +8,8 @@
 
 import Cocoa
 
+@objc(StyledProgressIndicator) class StyledProgressIndicator: NSProgressIndicator {}
+
 @objc(MainView) class MainView: NSView {
     weak var mainViewController: MainViewController?
 

@@ -280,31 +280,6 @@ void sha256_digest(const struct sha256_ctx *ctx, unsigned char *s)
 		}
 }
 
-//#if defined (_WIN32)
-//void
-//sha256_digest(const struct sha256_ctx *ctx, CString* sDigest)
-//{
-//	uint32_t i;
-//	unsigned int digest[32] = {0};
-//	unsigned int *s = digest;
-//
-//	if (s!=NULL && sDigest != NULL)
-//	{
-//		for (i = 0; i < _SHA256_DIGEST_LENGTH; i++) 
-//		{
-//			*s++ = ctx->state[i] >> 24;
-//			*s++ = 0xff & (ctx->state[i] >> 16);
-//			*s++ = 0xff & (ctx->state[i] >> 8);
-//			*s++ = 0xff & ctx->state[i];
-//		}
-//
-//		*sDigest = _T("");
-//		for(int p = 0; p < 32; p++)
-//			sDigest->AppendFormat(_T("%02X"), digest[p]);
-//	}
-//}
-//#endif
-
 void
 sha256_digest(const struct sha256_ctx *ctx, std::string* sDigest)
 {
@@ -326,11 +301,7 @@ sha256_digest(const struct sha256_ctx *ctx, std::string* sDigest)
 		for(int p = 0; p < 32; p++)
 		{
 			char buf[8] = {0};
-#if defined (_WIN32)
-			sprintf_s(buf, 8, "%02X", digest[p]);
-#else
-            snprintf(buf, 8, "%02X", digest[p]);
-#endif
+			snprintf(buf, 8, "%02X", digest[p]);
 			sDigest->append(std::string(buf));
 		}
 	}

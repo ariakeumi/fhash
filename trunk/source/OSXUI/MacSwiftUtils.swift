@@ -102,7 +102,7 @@ class MacSwiftUtils {
 
     class func GetStringFromRes(_ strKey: String) -> String {
         var strLocalized = NSLocalizedString(strKey, comment: "")
-        // Fix Windows UI strings.
+        // Normalize copied hash text line breaks.
         // Fix zh-cn.
         for iTest in Unicode.Scalar("A").value...Unicode.Scalar("Z").value {
             let chTest = Character(Unicode.Scalar(iTest)!)

@@ -19,20 +19,11 @@
 #include "Common/strhelper.h"
 #include "Common/UIBridgeBase.h"
 
-#if defined (_WIN32)
-#include "WinCommon/WindowsComm.h"
-#if (defined (FHASH_UWP_LIB) || defined(FHASH_WUI_LIB))
-#include "WinCommon/FileVersionHelper.h"
-#endif
-#endif
-
 #include "OsUtils/OsFile.h"
 #include "OsUtils/OsThread.h"
 
 #include "Algorithms/MD5.h"
-#include "Algorithms/SHA1.h"
 #include "Algorithms/sha256.h"
-#include "Algorithms/sha512.h"
 
 using namespace std;
 using namespace sunjwbase;
@@ -59,19 +50,9 @@ static void MD5UpdateWrapper(MD5_CTX *mdContext, unsigned char *inBuf, unsigned 
 	MD5Update(mdContext, inBuf, inLen); // MD5 update
 }
 
-static void SHA1UpdateWrapper(CSHA1 *sha1, unsigned char *data, unsigned int len)
-{
-	sha1->Update(data, len); // SHA1 update
-}
-
 static void SHA256UpdateWrapper(struct sha256_ctx *ctx, const unsigned char *buffer, uint32_t length)
 {
 	sha256_update(ctx, buffer, length); // SHA256 update
-}
-
-static void SHA512UpdateWrapper(SHA512_CTX *context, void *datain, size_t len)
-{
-	SHA512_Update(context, datain, len); // SHA512 update
 }
 
 static void UpdateProgressWrapper(uint64_t fsize, uint64_t totalSize, bool isSizeCaled, unsigned int dataBufLen,
@@ -134,13 +115,11 @@ int WINAPI HashThreadFunc(void *param)
 	tstring tstrFileSize;
 	tstring tstrFileVersion;
 	tstring tstrFileMD5;
-	tstring tstrFileSHA1;
 	tstring tstrFileSHA256;
-	tstring tstrFileSHA512;
 
 #if !defined (FHASH_SINGLE_THREAD_HASH_UPDATE)
-	// Create thread pool with 5 threads
-	ThreadPool threadPool(5);
+	// Create thread pool with 3 threads
+	ThreadPool threadPool(3);
 #endif
 
 	uiBridge->preparingCalc();
@@ -187,11 +166,7 @@ int WINAPI HashThreadFunc(void *param)
 			return 0;
 		}
 
-#if defined (_WIN32)
-		Sleep(3);
-#else
 		sched_yield();
-#endif
 
 		// Declaration for calculator
 		const TCHAR *path;
@@ -200,15 +175,8 @@ int WINAPI HashThreadFunc(void *param)
 
 		MD5_CTX mdContext; // MD5 context
 
-		CSHA1 sha1; // SHA1 object
-		char strSHA1[256];
-
 		SHA256_CTX sha256Ctx; // SHA256 context
 		string strSHA256;
-
-		SHA512_CTX sha512Ctx; // SHA512 context
-		uint8_t digestSHA512[SHA512_DIGEST_LENGTH];
-		string strSHA512;
 		// Declaration for calculator
 
 		ResultData resultNew;
@@ -227,19 +195,12 @@ int WINAPI HashThreadFunc(void *param)
 		uiBridge->showFileName(result);
 
 		//Calculating begins
-#if defined (_WIN32)
-		// CFileException fExc;
-		TCHAR fExc[OsFile::ERR_MSG_BUFFER_LEN] = { 0 };
-#else
 		char fExc[OsFile::ERR_MSG_BUFFER_LEN] = { 0 };
-#endif
 		OsFile osFile(path);
 		if (osFile.openReadScan((void *)&fExc))
 		{
 			MD5Init(&mdContext, 0); // MD5 init
-			sha1.Reset(); // SHA1 init
 			sha256_init(&sha256Ctx); // SHA256 init
-			SHA512_Init(&sha512Ctx); // SHA512 init
 
 			uiBridge->updateProg(0);
 
@@ -266,19 +227,6 @@ int WINAPI HashThreadFunc(void *param)
 				thrdData->totalSize = thrdData->totalSize + fsize - fSizes[i]; // fix total size
 				fSizes[i] = fsize; // fix file size
 			}
-
-#if defined (_WIN32)
-			// get file version //
-#if (defined (FHASH_UWP_LIB) || defined(FHASH_WUI_LIB))
-			WindowsComm::FileVersionHelper fvHelper(osFile);
-			tstrFileVersion = fvHelper.Find();
-			result.tstrVersion = tstrFileVersion;
-			osFile.seek(0, OsFile::OsFileSeekFrom::OF_SEEK_BEGIN); // reset offset
-#else
-			tstrFileVersion = WindowsComm::GetExeFileVersion((TCHAR *)path);
-			result.tstrVersion = tstrFileVersion;
-#endif
-#endif
 
 			result.enumState = RESULT_META;
 
@@ -329,14 +277,10 @@ int WINAPI HashThreadFunc(void *param)
 						continue; // no data
 
 					// multi threads
-					future<void> taskSHA512Update = threadPool.enqueue(SHA512UpdateWrapper, &sha512Ctx, ptrDataBufCalc->data, ptrDataBufCalc->datalen);
 					future<void> taskSHA256Update = threadPool.enqueue(SHA256UpdateWrapper, &sha256Ctx, ptrDataBufCalc->data, ptrDataBufCalc->datalen);
-					future<void> taskSHA1Update = threadPool.enqueue(SHA1UpdateWrapper, &sha1, ptrDataBufCalc->data, ptrDataBufCalc->datalen);
 					future<void> taskMD5Update = threadPool.enqueue(MD5UpdateWrapper, &mdContext, ptrDataBufCalc->data, ptrDataBufCalc->datalen);
 
-					taskSHA512Update.wait();
 					taskSHA256Update.wait();
-					taskSHA1Update.wait();
 					taskMD5Update.wait();
 
 					// update progress
@@ -388,9 +332,7 @@ int WINAPI HashThreadFunc(void *param)
 
 				// single thread
 				MD5UpdateWrapper(&mdContext, databuf.data, databuf.datalen); // MD5 update
-				SHA1UpdateWrapper(&sha1, databuf.data, databuf.datalen); // SHA1 update
 				SHA256UpdateWrapper(&sha256Ctx, databuf.data, databuf.datalen); // SHA256 update
-				SHA512UpdateWrapper(&sha512Ctx, databuf.data, databuf.datalen); // SHA512 update
 
 				// update progress
 				UpdateProgressWrapper(fsize, thrdData->totalSize, isSizeCaled, databuf.datalen,
@@ -419,9 +361,7 @@ int WINAPI HashThreadFunc(void *param)
 			uiBridge->fileCalcFinish();
 
 			MD5Final(&mdContext); // MD5 final
-			sha1.Final(); // SHA1 final
 			sha256_final(&sha256Ctx); // SHA256 final
-			SHA512_Final(digestSHA512, &sha512Ctx); // SHA256 final
 
 			if (!isSizeCaled)
 			{
@@ -442,26 +382,6 @@ int WINAPI HashThreadFunc(void *param)
 			char chHashBuff[1024] = {0};
 
 			// MD5
-#if defined (_WIN32)
-			sprintf_s(chHashBuff, 1024,
-								"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-								mdContext.digest[0],
-								mdContext.digest[1],
-								mdContext.digest[2],
-								mdContext.digest[3],
-								mdContext.digest[4],
-								mdContext.digest[5],
-								mdContext.digest[6],
-								mdContext.digest[7],
-								mdContext.digest[8],
-								mdContext.digest[9],
-								mdContext.digest[10],
-								mdContext.digest[11],
-								mdContext.digest[12],
-								mdContext.digest[13],
-								mdContext.digest[14],
-								mdContext.digest[15]);
-#else
 			snprintf(chHashBuff, 1024,
 					  "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
 					  mdContext.digest[0],
@@ -480,35 +400,15 @@ int WINAPI HashThreadFunc(void *param)
 					  mdContext.digest[13],
 					  mdContext.digest[14],
 					  mdContext.digest[15]);
-#endif
 			tstrFileMD5 = strtotstr(string(chHashBuff));
-
-			// SHA1
-			sha1.ReportHash(strSHA1, CSHA1::REPORT_HEX);
-			tstrFileSHA1 = strtotstr(string(strSHA1));
 
 			// SHA256
 			sha256_digest(&sha256Ctx, &strSHA256);
 			tstrFileSHA256 = strtotstr(strSHA256);
 
-			// SHA512
-			for (int p = 0; p < SHA512_DIGEST_LENGTH; p++)
-			{
-				char buf[8] = { 0 };
-#if defined (_WIN32)
-				sprintf_s(buf, 8, "%02X", digestSHA512[p]);
-#else
-				snprintf(buf, 8, "%02X", digestSHA512[p]);
-#endif
-				strSHA512.append(std::string(buf));
-			}
-			tstrFileSHA512 = strtotstr(strSHA512);
-
 			// all upper case
 			result.tstrMD5 = tstrFileMD5;
-			result.tstrSHA1 = tstrFileSHA1;
 			result.tstrSHA256 = tstrFileSHA256;
-			result.tstrSHA512 = tstrFileSHA512;
 
 			result.enumState = RESULT_ALL;
 
@@ -516,14 +416,7 @@ int WINAPI HashThreadFunc(void *param)
 		} // end if(File.Open(path, CFile::modeRead|CFile::shareDenyWrite, &ex))
 		else
 		{
-#if defined (_WIN32)
-			/*TCHAR szError[1024] = {0};
-			fExc.GetErrorMessage(szError, 1024);
-			result.tstrError = szError;*/
-			result.tstrError = fExc;
-#else
 			result.tstrError = strtotstr(string(fExc));
-#endif
 
 			result.enumState = RESULT_ERROR;
 

@@ -21,6 +21,42 @@ private struct MainViewControllerState: OptionSet {
     static let WAITING_EXIT = MainViewControllerState(rawValue: 1 << 4) // waiting thread stop and exit
 }
 
+private enum HashComparisonOutcome {
+    case same
+    case different
+
+    var foregroundColor: NSColor {
+        switch self {
+        case .same:
+            return .systemGreen
+        case .different:
+            return .systemRed
+        }
+    }
+
+    var backgroundColor: NSColor {
+        switch self {
+        case .same:
+            return NSColor.systemGreen.withAlphaComponent(0.14)
+        case .different:
+            return NSColor.systemRed.withAlphaComponent(0.14)
+        }
+    }
+}
+
+private struct MultiFileComparisonState {
+    let md5MatchedValues: Set<String>
+    let sha256MatchedValues: Set<String>
+
+    func outcome(for name: String, hashValue: String) -> HashComparisonOutcome {
+        let normalizedHashValue = hashValue.lowercased()
+        let isMatched = (name == "MD5")
+            ? md5MatchedValues.contains(normalizedHashValue)
+            : sha256MatchedValues.contains(normalizedHashValue)
+        return isMatched ? .same : .different
+    }
+}
+
 @objc(MainViewController) class MainViewController: NSViewController, NSTextViewDelegate, NSSearchFieldDelegate {
     static let MainClipViewInsetAfter26 = NSEdgeInsets(top: 28, left: 0, bottom: 0, right: 0)
     static let MainClipViewInsetWithFindBarAtAboveAfter26 = NSEdgeInsets(top: 34, left: 0, bottom: 0, right: 0)
@@ -146,7 +182,7 @@ private struct MainViewControllerState: OptionSet {
             mainTextView.textContainerInset = MainViewController.MainTextViewInsetAfter26
         }
 
-        mainFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        mainFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
         if mainFont == nil {
             mainFont = mainTextView.font
         }
@@ -175,7 +211,7 @@ private struct MainViewControllerState: OptionSet {
 
         // Set progressbar.
         let mainProgIndiFrame = mainProgressIndicator.frame
-        mainProgressIndicator.setFrameSize(NSMakeSize(mainProgIndiFrame.size.width, 2))
+        mainProgressIndicator.setFrameSize(NSMakeSize(mainProgIndiFrame.size.width, 10))
         mainProgressIndicator.maxValue = Double(hashBridge!.getProgMax())
 
         // Set checkbox.
@@ -188,6 +224,7 @@ private struct MainViewControllerState: OptionSet {
 
         // Update main text.
         self.updateMainTextView()
+        self.configureBeautifulInterface()
     }
 
     override func viewWillDisappear() {
@@ -207,6 +244,87 @@ private struct MainViewControllerState: OptionSet {
         UserDefaults.standard.set(
             defaultUpperCase,
             forKey: UpperCaseDefaultKey)
+    }
+
+    private func configureBeautifulInterface() {
+        mainScrollViewTopConstraint.constant = 0
+        mainScrollView.borderType = .bezelBorder
+        mainScrollView.drawsBackground = true
+        mainScrollView.backgroundColor = .textBackgroundColor
+        mainScrollView.wantsLayer = false
+
+        configureTextSurface()
+        configureButtons()
+        configureSpeedField()
+        refreshActionButtonStyles()
+        updateMainTextView(true)
+    }
+
+    private func configureTextSurface() {
+        mainClipView.wantsLayer = false
+
+        mainTextView.drawsBackground = true
+        mainTextView.backgroundColor = .textBackgroundColor
+        mainTextView.insertionPointColor = .controlAccentColor
+        mainTextView.linkTextAttributes = [
+            .foregroundColor: NSColor.controlAccentColor,
+            .underlineStyle: NSUnderlineStyle.single.rawValue
+        ]
+        mainTextView.textContainerInset = NSMakeSize(10.0, 12.0)
+
+        mainFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
+        if mainFont == nil {
+            mainFont = mainTextView.font
+        }
+        mainTextView.font = mainFont
+    }
+
+    private func configureButtons() {
+        [openButton, clearButton, verifyButton].forEach { button in
+            button.image = nil
+            button.imagePosition = .noImage
+            button.font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+            button.controlSize = .regular
+            button.focusRingType = .default
+            button.bezelColor = nil
+            button.contentTintColor = nil
+            button.alphaValue = 1.0
+        }
+
+        upperCaseButton.image = nil
+        upperCaseButton.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        upperCaseButton.contentTintColor = nil
+        upperCaseButton.alphaValue = 1.0
+        upperCaseButton.focusRingType = .default
+    }
+
+    private func configureSpeedField() {
+        speedTextField.isBordered = false
+        speedTextField.drawsBackground = false
+        speedTextField.wantsLayer = false
+        speedTextField.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        speedTextField.alignment = .right
+        speedTextField.textColor = .secondaryLabelColor
+        updateSpeedFieldAppearance()
+    }
+
+    private func refreshActionButtonStyles() {
+        [openButton, clearButton, verifyButton].forEach { button in
+            button.bezelColor = nil
+            button.contentTintColor = nil
+            button.alphaValue = 1.0
+        }
+
+        upperCaseButton.contentTintColor = nil
+        upperCaseButton.alphaValue = 1.0
+
+        updateSpeedFieldAppearance()
+    }
+
+    private func updateSpeedFieldAppearance() {
+        let hasValue = !speedTextField.stringValue.isEmpty
+        speedTextField.isHidden = !hasValue
+        speedTextField.alphaValue = hasValue ? 1.0 : 0.0
     }
 
     private func setViewControllerState(_ newState: MainViewControllerState) {
@@ -268,6 +386,8 @@ private struct MainViewControllerState: OptionSet {
             // User want to close.
             view.window?.close()
         }
+
+        refreshActionButtonStyles()
     }
 
     private func getFileMenu() -> NSMenu? {
@@ -506,6 +626,7 @@ private struct MainViewControllerState: OptionSet {
         } else {
             speedTextField.stringValue = ""
         }
+        updateSpeedFieldAppearance()
     }
 
     private func calculateStopped() {
@@ -567,12 +688,42 @@ private struct MainViewControllerState: OptionSet {
         mainText = NSMutableAttributedString()
 
         let results:[Any] = hashBridge!.getResults()
+        let comparisonState = getMultiFileComparisonState(from: results)
         for result in results {
             let resultSwift = result as? ResultDataSwift
-            self.appendResultToNSMutableAttributedString(resultSwift!, upperCaseState, mainText!)
+            self.appendResultToNSMutableAttributedString(resultSwift!,
+                                                         upperCaseState,
+                                                         mainText!,
+                                                         resultSwift?.state == ResultDataSwift.RESULT_ALL && comparisonState != nil,
+                                                         comparisonState)
         }
 
         self.updateMainTextView(true)
+    }
+
+    private func getMultiFileComparisonState(from results: [Any]) -> MultiFileComparisonState? {
+        let completedResults = results.compactMap { $0 as? ResultDataSwift }.filter {
+            $0.state == ResultDataSwift.RESULT_ALL
+        }
+
+        guard completedResults.count >= 2 else {
+            return nil
+        }
+
+        func matchedValues(for values: [String]) -> Set<String> {
+            var counts: [String: Int] = [:]
+            for value in values {
+                let normalizedValue = value.lowercased()
+                guard !normalizedValue.isEmpty else { continue }
+                counts[normalizedValue, default: 0] += 1
+            }
+            return Set(counts.compactMap { $0.value >= 2 ? $0.key : nil })
+        }
+
+        return MultiFileComparisonState(
+            md5MatchedValues: matchedValues(for: completedResults.map(\.strMD5)),
+            sha256MatchedValues: matchedValues(for: completedResults.map(\.strSHA256))
+        )
     }
 
     private func updateDockProgress(_ value: Int) {
@@ -626,20 +777,19 @@ private struct MainViewControllerState: OptionSet {
 
     private func appendFileHashToNSMutableAttributedString(_ result: ResultDataSwift,
                                                            _ uppercase: Bool,
-                                                           _ nsmutAttrString: NSMutableAttributedString)
+                                                           _ nsmutAttrString: NSMutableAttributedString,
+                                                           _ shouldHighlightComparison: Bool,
+                                                           _ comparisonState: MultiFileComparisonState?)
     {
-        var strFileMD5 = "", strFileSHA1 = "", strFileSHA256 = "", strFileSHA512 = ""
+        let strFileMD5: String
+        let strFileSHA256: String
 
         if uppercase {
             strFileMD5 = result.strMD5.uppercased()
-            strFileSHA1 = result.strSHA1.uppercased()
             strFileSHA256 = result.strSHA256.uppercased()
-            strFileSHA512 = result.strSHA512.uppercased()
         } else {
             strFileMD5 = result.strMD5.lowercased()
-            strFileSHA1 = result.strSHA1.lowercased()
             strFileSHA256 = result.strSHA256.lowercased()
-            strFileSHA512 = result.strSHA512.lowercased()
         }
 
         let nsmutStrHash = NSMutableAttributedString()
@@ -655,14 +805,12 @@ private struct MainViewControllerState: OptionSet {
         nsmutStrHash.addAttribute(.link,
                                   value: strFileMD5,
                                   range: NSRange(location: oldLength, length: strFileMD5.count))
-
-        // SHA1
-        MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, "\nSHA1: ")
-        oldLength = nsmutStrHash.length
-        MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, strFileSHA1)
-        nsmutStrHash.addAttribute(.link,
-                                  value: strFileSHA1,
-                                  range: NSRange(location: oldLength, length: strFileSHA1.count))
+        applyHashHighlightIfNeeded(nsmutStrHash,
+                                   rangeStart: oldLength,
+                                   hashValue: strFileMD5,
+                                   algorithmName: "MD5",
+                                   shouldHighlightComparison,
+                                   comparisonState)
 
         // SHA256
         MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, "\nSHA256: ")
@@ -671,20 +819,40 @@ private struct MainViewControllerState: OptionSet {
         nsmutStrHash.addAttribute(.link,
                                   value: strFileSHA256,
                                   range: NSRange(location: oldLength, length: strFileSHA256.count))
-
-        // SHA512
-        MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, "\nSHA512: ")
-        oldLength = nsmutStrHash.length
-        MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, strFileSHA512)
-        nsmutStrHash.addAttribute(.link,
-                                  value: strFileSHA512,
-                                  range: NSRange(location: oldLength, length: strFileSHA512.count))
+        applyHashHighlightIfNeeded(nsmutStrHash,
+                                   rangeStart: oldLength,
+                                   hashValue: strFileSHA256,
+                                   algorithmName: "SHA256",
+                                   shouldHighlightComparison,
+                                   comparisonState)
 
         MacSwiftUtils.AppendStringToNSMutableAttributedString(nsmutStrHash, "\n\n")
 
         nsmutStrHash.endEditing()
 
         nsmutAttrString.append(nsmutStrHash)
+    }
+
+    private func applyHashHighlightIfNeeded(_ text: NSMutableAttributedString,
+                                            rangeStart: Int,
+                                            hashValue: String,
+                                            algorithmName: String,
+                                            _ shouldHighlightComparison: Bool,
+                                            _ comparisonState: MultiFileComparisonState?) {
+        guard shouldHighlightComparison,
+              let comparisonState,
+              !hashValue.isEmpty else {
+            return
+        }
+
+        let outcome = comparisonState.outcome(for: algorithmName, hashValue: hashValue)
+        let range = NSRange(location: rangeStart, length: hashValue.count)
+        text.addAttribute(.foregroundColor,
+                          value: outcome.foregroundColor,
+                          range: range)
+        text.addAttribute(.backgroundColor,
+                          value: outcome.backgroundColor,
+                          range: range)
     }
 
     private func appendFileErrToNSMutableAttributedString(_ result: ResultDataSwift,
@@ -695,7 +863,9 @@ private struct MainViewControllerState: OptionSet {
 
     private func appendResultToNSMutableAttributedString(_ result: ResultDataSwift,
                                                          _ uppercase: Bool,
-                                                         _ nsmutAttrString: NSMutableAttributedString) {
+                                                         _ nsmutAttrString: NSMutableAttributedString,
+                                                         _ shouldHighlightComparison: Bool,
+                                                         _ comparisonState: MultiFileComparisonState?) {
         if result.state == ResultDataSwift.RESULT_NONE {
             return
         }
@@ -713,7 +883,11 @@ private struct MainViewControllerState: OptionSet {
         }
 
         if (result.state == ResultDataSwift.RESULT_ALL) {
-            self.appendFileHashToNSMutableAttributedString(result, uppercase, nsmutAttrString)
+            self.appendFileHashToNSMutableAttributedString(result,
+                                                           uppercase,
+                                                           nsmutAttrString,
+                                                           shouldHighlightComparison,
+                                                           comparisonState)
         }
 
         if (result.state == ResultDataSwift.RESULT_ERROR) {
@@ -777,9 +951,16 @@ private struct MainViewControllerState: OptionSet {
         inMainQueue += 1
         DispatchQueue.main.async(execute: { [result] in
             self.outMainQueue += 1
-            self.appendFileHashToNSMutableAttributedString(result, uppercase, self.mainText!)
-            if self.canUpdateMainTextView() {
-                self.updateMainTextView()
+            let completedResults = (self.hashBridge?.getResults() ?? []).compactMap { $0 as? ResultDataSwift }.filter {
+                $0.state == ResultDataSwift.RESULT_ALL
+            }
+            if completedResults.count >= 2 {
+                self.refreshResultText()
+            } else {
+                self.appendFileHashToNSMutableAttributedString(result, uppercase, self.mainText!, false, nil)
+                if self.canUpdateMainTextView() {
+                    self.updateMainTextView()
+                }
             }
         })
     }
@@ -827,6 +1008,7 @@ private struct MainViewControllerState: OptionSet {
     }
 
     @IBAction func uppercaseButtonClicked(_ sender: NSButton) {
+        refreshActionButtonStyles()
         if state == .CALC_FINISH {
             self.refreshResultText()
         }
@@ -906,7 +1088,7 @@ private struct MainViewControllerState: OptionSet {
         var fixedFindString = findString.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Second, regex
-        let pattern = "^(?:MD5|SHA(?:-?(?:1|256|512)))[\\s:=]+(.+)$"
+        let pattern = "^(?:MD5|SHA-?256)[\\s:=]+(.+)$"
         if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
             let nsFixedString = fixedFindString as NSString
             let range = NSRange(location: 0, length: nsFixedString.length)

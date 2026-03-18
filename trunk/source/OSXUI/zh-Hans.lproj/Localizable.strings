@@ -56,7 +56,6 @@
 "ABOUTDLG_INFO_RIGHT" = "Copyright (C) 2007- SUN Junwen.";
 "ABOUTDLG_INFO_MD5" = "MD5 实现 copyright (C) RSA Data Security, Inc.";
 "ABOUTDLG_INFO_SHA256" = "SHA256 实现 copyright (C) Niels Moller";
-"ABOUTDLG_INFO_SHA512" = "SHA512 实现 copyright (C) Aaron D. Gifford";
 "ABOUTDLG_INFO_RIGHTDETAIL" = "详细授权信息见开发者网站。";
 "ABOUTDLG_INFO_OSTITLE" = "当前操作系统:";
 "ABOUTDLG_PROJECT_SITE" = "<a>GitHub</a>";

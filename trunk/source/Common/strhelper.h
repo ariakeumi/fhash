@@ -16,22 +16,10 @@
 
 namespace sunjwbase
 {
-	// define the tstring only for WIN32 platform
-#if defined(_WIN32) && (defined(UNICODE) || defined(_UNICODE))
-#define _UNICODE_HELPER // use _UNICODE_HELPER internally
-	typedef std::wstring tstring;
-#else
 	typedef std::string tstring;
-#endif
-
-#if defined (_WIN32)
-	typedef __int64 INT64;
-#endif
-#if defined (__APPLE__) || defined (__unix)
 	typedef long long INT64;
 	typedef tstring::value_type TCHAR;
 	typedef TCHAR _TCHAR;
-#endif
 
 	// converting part
 	/*
@@ -48,34 +36,22 @@ namespace sunjwbase
 	std::string wstrtostr(const std::wstring& wstr);
 	std::wstring strtowstr(const std::string& str);
 
-#if defined (__APPLE__) || defined (__unix)
 	std::string striconv(const std::string& input,
 						 const std::string& to_code,
 						 const std::string& from_code);
-#endif
 
 	// convert native encoded string to utf8 encoded string
 	inline std::string utf8conv(std::string& strAscii)
 	{
-#if defined (_WIN32)
-		return wstrtostrutf8(strtowstr(strAscii));
-#endif
-#if defined (__APPLE__) || defined (__unix)
 		// current only support GB
 		return striconv(strAscii, "UTF-8", "GBK");
-#endif
 	}
 
 	// convert utf8 encoded string to native encoded string
 	inline std::string asciiconv(std::string& strUtf8)
 	{
-#if defined (_WIN32)
-		return wstrtostr(strtowstrutf8(strUtf8));
-#endif
-#if defined (__APPLE__) || defined (__unix)
 		// current only support GB
 		return striconv(strUtf8, "GBK", "UTF-8");
-#endif
 	}
 
 	// convert JSON utf16 encoded string to native encoded string
@@ -83,56 +59,32 @@ namespace sunjwbase
 
 	inline std::string tstrtostr(const tstring& tstr)
 	{
-#if defined(_UNICODE_HELPER)
-		return wstrtostr(tstr);
-#else
 		return tstr;
-#endif
 	}
 
 	inline std::wstring tstrtowstr(const tstring& tstr)
 	{
-#if defined(_UNICODE_HELPER)
-		return tstr;
-#else
 		return strtowstr(tstr);
-#endif
 	}
 
 	inline sunjwbase::tstring strtotstr(const std::string& str)
 	{
-#if defined(_UNICODE_HELPER)
-		return strtowstr(str);
-#else
 		return str;
-#endif
 	}
 
 	inline sunjwbase::tstring wstrtotstr(const std::wstring& wstr)
 	{
-#if defined(_UNICODE_HELPER)
-		return wstr;
-#else
 		return wstrtostr(wstr);
-#endif
 	}
 
 	inline sunjwbase::tstring strtotstrutf8(const std::string& str)
 	{
-#if defined(_UNICODE_HELPER)
-		return strtowstrutf8(str);
-#else
 		return str;
-#endif
 	}
 
 	inline std::string tstrtostrutf8(const sunjwbase::tstring& tstr)
 	{
-#if defined(_UNICODE_HELPER)
-		return wstrtostrutf8(tstr);
-#else
 		return tstr;
-#endif
 	}
 	// converting part
 

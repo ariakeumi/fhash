@@ -14,6 +14,12 @@ import Cocoa
 
         // Implement this method to handle any initialization after your window controller's window has been loaded from its nib file.
         window?.delegate = self
+        window?.titleVisibility = .hidden
+        window?.toolbarStyle = .unifiedCompact
+        window?.minSize = NSSize(width: 680, height: 480)
+        if let window, window.frame.width < 680 || window.frame.height < 480 {
+            window.setContentSize(NSSize(width: 720, height: 520))
+        }
 
         // Prepare for NSVisualEffectView/NSGlassEffectView background.
         // window?.titlebarAppearsTransparent = true
